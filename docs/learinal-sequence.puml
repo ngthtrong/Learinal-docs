@@ -1,0 +1,54 @@
+@startuml Sequence
+!theme _none_
+
+' ======================================================
+' 4.3.2 Sequence Diagram – Scenario: Generate Question Set & Request Review
+' ======================================================
+
+title Sequence Diagram - Generate Question Set & Request Review
+
+actor Learner
+boundary Web as QuestionSetController
+control Auth as AuthService
+control QSvc as QuestionBankService
+control Rev as ReviewWorkflowService
+control Repo as QuestionSetRepository
+entity DocRepo as DocumentRepository
+queue MQ as MessageQueue
+entity Email as EmailAdapter
+control LLM as LLMAdapter
+
+' 1) Learner triggers generation
+Learner -> Web : POST /question-sets/generate\n{documentId, topics[], difficulty, numQuestions}
+Web -> Auth : verify(token)
+Auth --> Web : User
+
+' 2) Load document & generate MCQs via LLM
+Web -> DocRepo : findById(documentId)
+DocRepo --> Web : Document
+Web -> QSvc : createQuestionSet(input)
+QSvc -> LLM : generateMCQs(prompt)
+LLM --> QSvc : Question[]
+QSvc -> Repo : save(QuestionSet)
+Repo --> QSvc : setId
+QSvc --> Web : setId
+Web --> Learner : 201 Created { setId }
+
+' 3) Learner requests expert review (optional)
+Learner -> Web : POST /question-sets/{setId}/review
+Web -> Rev : createReviewRequest(setId, userId)
+Rev -> Repo : findById(setId)
+Repo --> Rev : QuestionSet
+Rev -> MQ : publish("review.assigned", payload)
+Rev -> Email : send(to=expert, subject, body)
+Rev --> Web : ValidationRequest
+Web --> Learner : 202 Accepted { requestId }
+
+' Notes for async handling
+note over MQ
+  Consumer (Expert Dashboard Worker)
+  sẽ nhận sự kiện review.assigned,
+  cập nhật trạng thái và thông báo
+end note
+
+@enduml

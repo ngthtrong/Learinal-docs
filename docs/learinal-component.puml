@@ -1,0 +1,54 @@
+@startuml Component
+!theme  _none_
+
+' ======================================================
+' Diagram 3: Component Diagram for API Backend
+' ======================================================
+title Component Diagram - API Backend (Learinal)
+
+' Container boundary (for visual grouping)
+package "API Backend [Node.js]" {
+  component "AuthService" as AuthSvc
+  component "UserService" as UserSvc
+  component "DocumentIngestionService" as IngestSvc
+  component "ContentService\n(Tóm tắt/Mục lục)" as ContentSvc
+  component "QuestionBankService\n(Tạo & quản lý câu hỏi)" as QuestionSvc
+  component "ReviewWorkflowService\n(Phân công & duyệt)" as ReviewSvc
+  component "NotificationService" as NotifySvc
+  component "LLMAdapter\n(Gemini)" as LLMAdapter
+  component "PaymentAdapter\n(Stripe) <<TBC>>" as PayAdapter
+
+  database "UserRepository" as UserRepo
+  database "DocumentRepository" as DocRepo
+  database "QuestionSetRepository" as QSetRepo
+  database "ReviewRepository" as ReviewRepo
+  database "AttemptRepository" as AttemptRepo
+
+  queue "Message Queue\n(Events)" as MQ
+}
+
+[LLM Provider\n(Google Gemini API)] as LLM
+[Email Service\n(SendGrid/SES)] as Email
+[Object Storage\n(S3/Cloudinary)] as Storage
+[Identity Provider\n(Google OAuth 2.0)] as IdP
+
+' Flows inside backend
+AuthSvc --> IdP : OAuth 2.0 / Verify Token
+UserSvc --> UserRepo : save()/find()
+IngestSvc --> Storage : upload/download files
+IngestSvc --> DocRepo : save()/update()
+IngestSvc --> LLMAdapter : extract & clean text
+ContentSvc --> LLMAdapter : generate summaries/ToC
+ContentSvc --> DocRepo : update summaries
+QuestionSvc --> LLMAdapter : generate MCQs
+QuestionSvc --> QSetRepo : save()/find()
+ReviewSvc --> ReviewRepo : save()/update()
+ReviewSvc --> MQ : publish "review.assigned"/"review.completed"
+NotifySvc --> Email : send mail
+NotifySvc --> MQ : subscribe notifications
+
+' Cross references
+LLMAdapter --> LLM : REST/HTTPS
+PayAdapter --> "Cổng Thanh toán (Stripe)" : REST/HTTPS
+
+@enduml

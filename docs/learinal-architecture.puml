@@ -1,0 +1,138 @@
+@startuml Context
+!theme cyborg
+
+' ======================================================
+' Diagram 1: System Context Diagram for Learinal
+' ======================================================
+title System Context Diagram - Learinal
+
+actor "Người học\n(Learner)" as PersonLearner
+actor "Chuyên gia\n(Expert)" as PersonExpert
+actor "Quản trị viên\n(Admin)" as PersonAdmin
+
+rectangle "Hệ thống Learinal\n(Hỗ trợ học tập và luyện thi)" as LearinalSystem {
+}
+
+' External systems
+[LLM Provider\n(Google Gemini API)] as LLM
+[Email Service\n(SendGrid/SES)] as Email
+[Object Storage\n(S3/Cloudinary)] as Storage
+[Identity Provider\n(Google OAuth 2.0)] as IdP
+[Cổng Thanh toán\n(Stripe) <<TBC>>] as Pay
+
+' Persons use the system
+PersonLearner --> LearinalSystem : Sử dụng
+PersonExpert --> LearinalSystem : Làm việc/kiểm duyệt
+PersonAdmin --> LearinalSystem : Quản trị
+
+' System talks to externals
+LearinalSystem --> LLM : Phân tích tài liệu, tạo tóm tắt\n& sinh câu hỏi
+LearinalSystem --> Email : Gửi thông báo/OTP
+LearinalSystem --> Storage : Tải lên/lấy file tài liệu
+LearinalSystem --> IdP : Đăng nhập 1 chạm (SSO)
+LearinalSystem --> Pay : Thanh toán gói (nếu kích hoạt)
+
+@enduml
+
+@startuml Container
+!theme cyborg
+
+' ======================================================
+' Diagram 2: Container Diagram for Learinal
+' ======================================================
+title Container Diagram - Learinal
+
+actor "Người học" as Learner
+actor "Chuyên gia" as Expert
+actor "Quản trị viên" as Admin
+
+frame "Hệ thống Learinal [system]" {
+  node "Web Application\n[React/Next.js]" as WebApp
+  node "API Backend\n[Node.js (Express)]" as API
+  node "Background Worker\n[Node.js + Queue]" as Worker
+  database "Database\n[MongoDB]" as DB
+  queue "Message Queue\n[Redis/RabbitMQ]" as MQ
+}
+
+[LLM Provider\n(Google Gemini API)] as LLM
+[Email Service\n(SendGrid/SES)] as Email
+[Object Storage\n(S3/Cloudinary)] as Storage
+[Identity Provider\n(Google OAuth 2.0)] as IdP
+[Cổng Thanh toán\n(Stripe) <<TBC>>] as Pay
+
+' Usage
+Learner --> WebApp : Truy cập qua trình duyệt [HTTPS]
+Expert --> WebApp
+Admin --> WebApp
+
+' Internal communication
+WebApp <--> API : REST/HTTPS + JSON
+API <--> DB : MongoDB driver (TLS)
+API <--> MQ : publish events
+Worker <--> MQ : consume events
+Worker <--> DB : MongoDB driver (TLS)
+
+' External
+API --> LLM : REST/HTTPS
+API --> Email : SMTP/TLS or REST
+API --> Storage : REST/HTTPS
+API --> IdP : OAuth 2.0 (login)
+WebApp ..> IdP : PKCE/OAuth redirect
+API --> Pay : REST/HTTPS (nếu bật thanh toán)
+
+@enduml
+
+@startuml Component
+!theme _none_
+
+' ======================================================
+' Diagram 3: Component Diagram for API Backend
+' ======================================================
+title Component Diagram - API Backend (Learinal)
+
+' Container boundary (for visual grouping)
+package "API Backend [Node.js]" {
+  component "AuthService" as AuthSvc
+  component "UserService" as UserSvc
+  component "DocumentIngestionService" as IngestSvc
+  component "ContentService\n(Tóm tắt/Mục lục)" as ContentSvc
+  component "QuestionBankService\n(Tạo & quản lý câu hỏi)" as QuestionSvc
+  component "ReviewWorkflowService\n(Phân công & duyệt)" as ReviewSvc
+  component "NotificationService" as NotifySvc
+  component "LLMAdapter\n(Gemini)" as LLMAdapter
+  component "PaymentAdapter\n(Stripe) <<TBC>>" as PayAdapter
+
+  database "UserRepository" as UserRepo
+  database "DocumentRepository" as DocRepo
+  database "QuestionSetRepository" as QSetRepo
+  database "ReviewRepository" as ReviewRepo
+  database "AttemptRepository" as AttemptRepo
+
+  queue "Message Queue\n(Events)" as MQ
+}
+
+[LLM Provider\n(Google Gemini API)] as LLM
+[Email Service\n(SendGrid/SES)] as Email
+[Object Storage\n(S3/Cloudinary)] as Storage
+[Identity Provider\n(Google OAuth 2.0)] as IdP
+
+' Flows inside backend
+AuthSvc --> IdP : OAuth 2.0 / Verify Token
+UserSvc --> UserRepo : save()/find()
+IngestSvc --> Storage : upload/download files
+IngestSvc --> DocRepo : save()/update()
+IngestSvc --> LLMAdapter : extract & clean text
+ContentSvc --> LLMAdapter : generate summaries/ToC
+ContentSvc --> DocRepo : update summaries
+QuestionSvc --> LLMAdapter : generate MCQs
+QuestionSvc --> QSetRepo : save()/find()
+ReviewSvc --> ReviewRepo : save()/update()
+ReviewSvc --> MQ : publish "review.assigned"/"review.completed"
+NotifySvc --> Email : send mail
+NotifySvc --> MQ : subscribe notifications
+
+' Cross references
+LLMAdapter --> LLM : REST/HTTPS
+PayAdapter --> "Cổng Thanh toán (Stripe)" : REST/HTTPS
+
+@enduml

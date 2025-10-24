@@ -1,0 +1,143 @@
+@startuml Class
+!theme _none_
+
+' ======================================================
+' 4.3.1 Class Diagram – Module: Question Generation & Review
+' ======================================================
+' Chọn module cốt lõi theo SRS: chuyển đổi tài liệu → sinh câu hỏi (LLM) → tạo bộ đề → yêu cầu kiểm duyệt
+
+title Class Diagram - Learinal (Question Generation & Review)
+
+package "Boundary" #DDDDFF {
+  class QuestionSetController {
+    + generateSet(req): HttpResponse
+    + requestReview(setId): HttpResponse
+    + getSet(setId): HttpResponse
+  }
+}
+
+package "Application Services" #DDFFDD {
+  interface IAuthService {
+    + verify(token): User
+  }
+  class AuthService implements IAuthService
+
+  interface IQuestionBankService {
+    + generateQuestions(input): Question[]
+    + createQuestionSet(input): QuestionSet
+  }
+  class QuestionBankService implements IQuestionBankService
+
+  interface IReviewWorkflowService {
+    + createReviewRequest(setId, requesterId): ValidationRequest
+  }
+  class ReviewWorkflowService implements IReviewWorkflowService
+
+  interface IContentService {
+    + summarize(documentId): Summary
+    + buildToc(documentId): Toc
+  }
+  class ContentService implements IContentService
+}
+
+package "Adapters" #FFE0B2 {
+  interface ILLMClient {
+    + generateMCQs(prompt): Question[]
+    + summarize(prompt): Summary
+  }
+  class LLMAdapter implements ILLMClient
+
+  interface IEmailClient {
+    + send(to, subject, body)
+  }
+  class EmailAdapter implements IEmailClient
+
+  interface IStorageClient {
+    + getFile(url): Binary
+  }
+  class StorageAdapter implements IStorageClient
+
+  interface IEventBus {
+    + publish(topic, payload)
+    + subscribe(topic, handler)
+  }
+  class MessageQueue implements IEventBus
+}
+
+package "Domain" #FFF9C4 {
+  class User {
+    + userId: ObjectId
+    + role: Role
+  }
+  class Document {
+    + documentId: ObjectId
+    + ownerId: ObjectId
+    + fileUrl: String
+  }
+  class Question {
+    + text: String
+    + options: String[4]
+    + correctIndex: int
+    + difficulty: Difficulty
+  }
+  class QuestionSet {
+    + setId: ObjectId
+    + title: String
+    + creatorId: ObjectId
+    + status: SetStatus
+    + questions: Question[*]
+  }
+  class ValidationRequest {
+    + requestId: ObjectId
+    + setId: ObjectId
+    + status: ReviewStatus
+  }
+}
+
+package "Repositories" #E1BEE7 {
+  interface IQuestionSetRepository {
+    + save(set: QuestionSet): QuestionSet
+    + findById(id): QuestionSet
+  }
+  class QuestionSetRepository implements IQuestionSetRepository
+
+  interface IDocumentRepository {
+    + findById(id): Document
+  }
+  class DocumentRepository implements IDocumentRepository
+
+  interface IReviewRepository {
+    + save(req: ValidationRequest): ValidationRequest
+  }
+  class ReviewRepository implements IReviewRepository
+}
+
+' Relationships
+QuestionSetController --> IAuthService : verify()
+QuestionSetController --> IQuestionBankService : createQuestionSet()
+QuestionSetController --> IReviewWorkflowService : requestReview()
+QuestionSetController --> IQuestionSetRepository : getSet()
+
+QuestionBankService --> ILLMClient : generateMCQs()
+QuestionBankService --> IQuestionSetRepository : save()
+QuestionBankService --> IDocumentRepository : findById()
+
+ContentService --> ILLMClient : summarize()/buildToc()
+
+ReviewWorkflowService --> IReviewRepository : save()
+ReviewWorkflowService --> IEventBus : publish("review.assigned")
+ReviewWorkflowService --> IEmailClient : send()
+
+' DIP highlights
+IQuestionBankService <|.. QuestionBankService
+IReviewWorkflowService <|.. ReviewWorkflowService
+IAuthService <|.. AuthService
+ILLMClient <|.. LLMAdapter
+IEmailClient <|.. EmailAdapter
+IStorageClient <|.. StorageAdapter
+IEventBus <|.. MessageQueue
+IQuestionSetRepository <|.. QuestionSetRepository
+IDocumentRepository <|.. DocumentRepository
+IReviewRepository <|.. ReviewRepository
+
+@enduml

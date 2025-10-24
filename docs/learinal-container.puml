@@ -1,0 +1,47 @@
+@startuml Container
+!theme  _none_
+
+' ======================================================
+' Diagram 2: Container Diagram for Learinal
+' ======================================================
+title Container Diagram - Learinal
+
+actor "Người học" as Learner
+actor "Chuyên gia" as Expert
+actor "Quản trị viên" as Admin
+
+frame "Hệ thống Learinal [system]" {
+  node "Web Application\n[React/Next.js]" as WebApp
+  node "API Backend\n[Node.js (Express)]" as API
+  node "Background Worker\n[Node.js + Queue]" as Worker
+  database "Database\n[MongoDB]" as DB
+  queue "Message Queue\n[Redis/RabbitMQ]" as MQ
+}
+
+[LLM Provider\n(Google Gemini API)] as LLM
+[Email Service\n(SendGrid/SES)] as Email
+[Object Storage\n(S3/Cloudinary)] as Storage
+[Identity Provider\n(Google OAuth 2.0)] as IdP
+[Cổng Thanh toán\n(Stripe) <<TBC>>] as Pay
+
+' Usage
+Learner --> WebApp : Truy cập qua trình duyệt [HTTPS]
+Expert --> WebApp
+Admin --> WebApp
+
+' Internal communication
+WebApp <--> API : REST/HTTPS + JSON
+API <--> DB : MongoDB driver (TLS)
+API <--> MQ : publish events
+Worker <--> MQ : consume events
+Worker <--> DB : MongoDB driver (TLS)
+
+' External
+API --> LLM : REST/HTTPS
+API --> Email : SMTP/TLS or REST
+API --> Storage : REST/HTTPS
+API --> IdP : OAuth 2.0 (login)
+WebApp ..> IdP : PKCE/OAuth redirect
+API --> Pay : REST/HTTPS (nếu bật thanh toán)
+
+@enduml

@@ -1,0 +1,35 @@
+@startuml Context
+!theme  _none_
+
+' ======================================================
+' Diagram 1: System Context Diagram for Learinal
+' ======================================================
+title System Context Diagram - Learinal
+
+actor "Người học\n(Learner)" as PersonLearner
+actor "Chuyên gia\n(Expert)" as PersonExpert
+actor "Quản trị viên\n(Admin)" as PersonAdmin
+
+rectangle "Hệ thống Learinal\n(Hỗ trợ học tập và luyện thi)" as LearinalSystem {
+}
+
+' External systems
+[LLM Provider\n(Google Gemini API)] as LLM
+[Email Service\n(SendGrid/SES)] as Email
+[Object Storage\n(S3/Cloudinary)] as Storage
+[Identity Provider\n(Google OAuth 2.0)] as IdP
+[Cổng Thanh toán\n(Stripe) <<TBC>>] as Pay
+
+' Persons use the system
+PersonLearner --> LearinalSystem : Sử dụng
+PersonExpert --> LearinalSystem : Làm việc/kiểm duyệt
+PersonAdmin --> LearinalSystem : Quản trị
+
+' System talks to externals
+LearinalSystem --> LLM : Phân tích tài liệu, tạo tóm tắt\n& sinh câu hỏi
+LearinalSystem --> Email : Gửi thông báo/OTP
+LearinalSystem --> Storage : Tải lên/lấy file tài liệu
+LearinalSystem --> IdP : Đăng nhập 1 chạm (SSO)
+LearinalSystem --> Pay : Thanh toán gói (nếu kích hoạt)
+
+@enduml

@@ -1,0 +1,241 @@
+@startuml
+!theme cyborg
+
+title Sơ đồ ERD - Hệ thống Learinal (Cập nhật SubscriptionPlans & UserSubscriptions)
+
+' =================== Định nghĩa các Entity ===================
+
+entity "Users" as users {
+  * **userId**: ObjectId <<PK>>
+  --
+  * fullName: String
+  * email: String <<unique>>
+  * hashedPassword: String (bcrypt)
+  * role: Enum ['Learner', 'Expert', 'Admin']
+  * status: Enum ['Chờ xác thực', 'Đang hoạt động', 'Vô hiệu hóa']
+  * subscriptionPlanId: ObjectId <<FK>> (nullable)
+  * subscriptionStatus: Enum ['None','Active','Expired','Cancelled']
+  * subscriptionRenewalDate: DateTime (nullable)
+  * createdAt: DateTime
+  * updatedAt: DateTime
+}
+
+entity "Subjects" as subjects {
+  * **subjectId**: ObjectId <<PK>>
+  --
+  * name: String
+  * description: String
+  * ownerId: ObjectId <<FK>>
+  * tableOfContents: JSON (do LLM tạo)
+  * summary: Text (do LLM tạo)
+  * createdAt: DateTime
+  * updatedAt: DateTime
+}
+
+entity "Documents" as documents {
+  * **documentId**: ObjectId <<PK>>
+  --
+  * fileName: String
+  * fileType: Enum ['.pdf', '.docx', '.txt']
+  * fileUrl: String
+  * uploadDate: DateTime
+  * subjectId: ObjectId <<FK>>
+  * ownerId: ObjectId <<FK>>
+  * processingStatus: Enum ['Đang chờ', 'Đã xử lý', 'Lỗi']
+  * extractedText: Text
+  * summaryShort: Text (3-5 câu)
+  * summaryFull: Text (6-10 gạch đầu dòng)
+  * summaryUpdatedAt: DateTime (nullable)
+  * fileSize: Number (MB)
+}
+
+entity "QuestionSets" as questionsets {
+  * **setId**: ObjectId <<PK>>
+  --
+  * title: String
+  * description: Text
+  * subjectId: ObjectId <<FK>>
+  * creatorId: ObjectId <<FK>>
+  * questions: Array<Question>
+  * timeLimit: Number (phút)
+  * status: Enum ['Bản nháp', 'Công khai', 'Chờ xác thực', \n'Đã xác thực', 'Bị từ chối', 'Đã xuất bản']
+  * shareLink: String (unique, nullable)
+  * isShared: Boolean
+  * createdAt: DateTime
+  * updatedAt: DateTime
+}
+
+entity "Questions" as questions {
+  (Embedded trong QuestionSets)
+  --
+  * questionText: Text
+  * options: Array<String>
+  * correctAnswerIndex: Number
+  * explanation: Text
+  * topicTags: Array<String>
+  * topicStatus: Enum ['active','disabled']
+  * difficultyLevel: Enum ['Biết','Hiểu','Vận dụng','Vận dụng cao']
+}
+
+entity "QuizAttempts" as quizattempts {
+  * **attemptId**: ObjectId <<PK>>
+  --
+  * userId: ObjectId <<FK>>
+  * setId: ObjectId <<FK>>
+  * startedAt: DateTime
+  * completedAt: DateTime
+  * score: Number (0-100)
+  * totalQuestions: Number
+  * correctAnswers: Number
+  * userAnswers: Array<Answer>
+}
+
+entity "UserAnswers" as useranswers {
+  (Embedded trong QuizAttempts)
+  --
+  * questionId: String
+  * selectedOptionIndex: Number
+  * isCorrect: Boolean
+}
+
+entity "ValidationRequests" as validationrequests {
+  * **requestId**: ObjectId <<PK>>
+  --
+  * setId: ObjectId <<FK>>
+  * requesterId: ObjectId <<FK>>
+  * assignedAdminId: ObjectId <<FK>> (nullable)
+  * assignedExpertId: ObjectId <<FK>> (nullable)
+  * status: Enum ['Chờ phân công', 'Đang xử lý', \n'Hoàn thành', 'Bị từ chối']
+  * rejectionReason: Text (nullable)
+  * createdAt: DateTime
+  * updatedAt: DateTime
+}
+
+entity "CommissionRecords" as commissionrecords {
+  * **recordId**: ObjectId <<PK>>
+  --
+  * expertId: ObjectId <<FK>>
+  * attemptId: ObjectId <<FK>> (nullable)
+  * setId: ObjectId <<FK>>
+  * commissionAmount: Number
+  * transactionDate: DateTime
+  * status: Enum ['Pending','Paid']
+}
+
+entity "SubscriptionPlans" as subscriptionplans {
+  * **planId**: ObjectId <<PK>>
+  --
+  * planName: String
+  * description: Text
+  * billingCycle: Enum ['Monthly','Yearly']
+  * price: Number
+  * entitlements: JSON
+  * status: Enum ['Active','Archived']
+  * createdAt: DateTime
+  * updatedAt: DateTime
+}
+
+entity "UserSubscriptions" as usersubscriptions {
+  * **subscriptionId**: ObjectId <<PK>>
+  --
+  * userId: ObjectId <<FK>>
+  * planId: ObjectId <<FK>>
+  * startDate: DateTime
+  * endDate: DateTime (nullable)
+  * renewalDate: DateTime (nullable)
+  * status: Enum ['Active','Expired','Cancelled','PendingPayment']
+  * entitlementsSnapshot: JSON
+}
+
+entity "Notifications" as notifications {
+  * **notificationId**: ObjectId <<PK>>
+  --
+  * userId: ObjectId <<FK>>
+  * title: String
+  * message: Text
+  * type: Enum ['info', 'success', 'warning', 'error']
+  * isRead: Boolean
+  * relatedEntityType: String (nullable)
+  * relatedEntityId: ObjectId (nullable)
+  * createdAt: DateTime
+}
+
+' =================== Định nghĩa các mối quan hệ ===================
+
+' User relationships
+users ||--o{ subjects : "tạo/sở hữu (ownerId)"
+users ||--o{ documents : "tải lên (ownerId)"
+users ||--o{ questionsets : "tạo (creatorId)"
+users ||--o{ quizattempts : "thực hiện"
+users ||--o{ validationrequests : "yêu cầu (requesterId)"
+users ||--o{ validationrequests : "phân công (assignedAdminId)"
+users ||--o{ validationrequests : "xử lý (assignedExpertId)"
+users ||--o{ commissionrecords : "nhận hoa hồng (Expert)"
+users ||--o{ notifications : "nhận thông báo"
+
+' Subject relationships
+subjects ||--o{ documents : "chứa"
+subjects ||--o{ questionsets : "liên kết"
+
+' QuestionSet relationships
+questionsets ||--o{ quizattempts : "được làm"
+questionsets ||--o| validationrequests : "có yêu cầu xác thực"
+questionsets ||--o{ commissionrecords : "phát sinh hoa hồng"
+questionsets ||--o{ questions : "chứa câu hỏi"
+
+' QuizAttempt relationships
+quizattempts ||--o{ useranswers : "chứa câu trả lời"
+quizattempts ||--o{ commissionrecords : "phát sinh hoa hồng"
+
+' Subscription relationships
+users }o--|| subscriptionplans : "gói hiện tại (subscriptionPlanId)"
+users ||--o{ usersubscriptions : "đăng ký"
+subscriptionplans ||--o{ usersubscriptions : "được chọn"
+
+' =================== Ghi chú ===================
+
+note right of users
+  **Vai trò (role):**
+  - Learner: Người học
+  - Expert: Chuyên gia
+  - Administrator: Quản trị viên
+  
+  **Trạng thái (status):**
+  - Chờ xác thực: Chưa kích hoạt email
+  - Đang hoạt động: Đã xác thực
+  - Vô hiệu hóa: Bị khóa bởi Admin
+end note
+
+note right of questionsets
+  **Trạng thái (status):**
+  - Bản nháp: Expert đang tạo
+  - Công khai: Learner tạo bằng LLM
+  - Chờ xác thực: Learner yêu cầu xác thực
+  - Đang xử lý: Expert đang kiểm duyệt
+  - Đã xác thực: Expert phê duyệt
+  - Bị từ chối: Expert từ chối
+  - Đã xuất bản: Admin xuất bản (Premium)
+end note
+
+note bottom of documents
+  **Giới hạn:**
+  - Dung lượng tối đa: 20MB/file
+  - Tối đa 50 files/môn học
+  - Định dạng: .pdf, .docx, .txt
+end note
+
+note bottom of commissionrecords
+  Ghi nhận hoa hồng cho Chuyên gia
+  dựa trên lượt làm bài của người dùng trả phí
+  và loại nội dung (Published/Validated)
+end note
+
+note right of subscriptionplans
+  entitlements ví dụ:
+  - maxMonthlyTestGenerations
+  - maxValidationRequests
+  - priorityProcessing
+  - shareLimits, maxSubjects
+end note
+
+@enduml

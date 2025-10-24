@@ -144,6 +144,12 @@ Hợp đồng API mẫu – Create Question Set
 
 ---
 
+Tham chiếu API chi tiết
+- OpenAPI: `docs/api/learinal-openapi.yaml` (OpenAPI 3.1 – đầy đủ endpoint/schemas).
+- Hướng dẫn backend: `docs/api/README.md` (quy ước, hạn mức, tích hợp dịch vụ ngoài).
+
+---
+
 ## 5. Bảo mật & tuân thủ (tóm tắt)
 
 - OAuth 2.0/OIDC cho đăng nhập; JWT access token + refresh token an toàn.
